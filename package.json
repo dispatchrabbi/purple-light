@@ -1,0 +1,25 @@
+{
+  "name": "purple-light",
+  "version": "0.0.1",
+  "description": "A program to light up a blink(1) when a CTA El train is approaching.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dispatchrabbi/purple-light.git"
+  },
+  "author": "Eli Morris-Heft <eli.morris.heft@gmail.com>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dispatchrabbi/purple-light/issues"
+  },
+  "homepage": "https://github.com/dispatchrabbi/purple-light",
+  "dependencies": {
+    "daemon": "^1.1.0",
+    "denodeify": "^1.2.1",
+    "node-blink1": "^0.2.2",
+    "slow-zone": "^1.0.0"
+  }
+}

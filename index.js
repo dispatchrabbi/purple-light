@@ -1,14 +1,11 @@
 'use strict';
 
-// Libraries
-const denodeify = require('denodeify'); // Hooray for Promises!
-const Blink1 = require('node-blink1');
-
-const SlowZone = require('slow-zone');
-
-// Configuration stuff
 const CONFIG = require('./config.js');
+const arrivals = require('./lib/arrivals-as-promised.js');
+const blinkerPatterns = require('./lib/blinker-patterns.js');
+const blinkerControl = require('./lib/blinker-control.js');
 
+const Blink1 = require('node-blink1');
 let blinker;
 try {
   blinker = new Blink1(CONFIG.BLINK1_SERIAL_NUMBER || undefined); // undefined = the first one the library finds
@@ -18,69 +15,51 @@ try {
   process.exit(1);
 }
 
+const SlowZone = require('slow-zone');
 let sz = new SlowZone({
   apiKey: CONFIG.TRAIN_TRACKER_API_KEY
 });
-const arrivalsByStop = denodeify(sz.arrivals.byStop);
 
-const calculateColorIntensity = function(minutesAway, maximumMinutes) {
-  // first, calculate the ratio of how far the train is away to our threshold, reversed because we want more intensity the closer it is.
-  let intensity = (maximumMinutes - minutesAway) / maximumMinutes;
-  // now scale that percentage up to the 0-255 scale
-  intensity = (intensity * 255);
-  return intensity;
-};
+function checkPredictionsAndReact(slowZoneInstance, blinker) {
+  // Show that the program is retrieving new data
+  blinkerControl.playSequenceOnBlinker(blinker, blinkerPatterns.indicateWorking(), Infinity);
 
-const checkArrivalsAndChangeBlinker = function() {
-  return arrivalsByStop(
-    CONFIG.STOP.ID,
-    {} // no options needed
-  )
-  .then(function(arrivals) {
-    console.log('Got some data:');
-    console.log(arrivals);
-    let firstArrival = arrivals[0];
+  return arrivals
+    .getArrivals(slowZoneInstance, CONFIG.STOP.ID)
+    .then(function(arrivals) {
+      if(arrivals.length > 0) {
+        // use the first arrival to tell us what to show on the blinker.
+        console.info(arrivals[0]);
+        let arrivalBlinkerSequence = blinkerPatterns.fadeToArrival(arrivals[0]);
+        console.info(arrivalBlinkerSequence);
+        blinkerControl.playSequenceOnBlinker(blinker, arrivalBlinkerSequence);
+      } else {
+        // Just hang out for now... (maybe this should be a soft grey?)
+        blinker.off();
+      }
 
-    if(firstArrival && firstArrival.prediction.arrivalMinutes <= CONFIG.MAXIMUM_TIME_AWAY) {
-      const minutesAway = firstArrival.prediction.arrivalMinutes;
-
-      // for now, this is how we'll do this
-      const redGreenOrBlue = Math.random();
-      const colors = {
-        red: redGreenOrBlue <= 0.33 ? calculateColorIntensity(minutesAway, CONFIG.MAXIMUM_TIME_AWAY) : 0,
-        green: redGreenOrBlue > 0.33 && redGreenOrBlue < 0.67 ? calculateColorIntensity(minutesAway, CONFIG.MAXIMUM_TIME_AWAY) : 0,
-        blue: redGreenOrBlue > 0.67 ? calculateColorIntensity(minutesAway, CONFIG.MAXIMUM_TIME_AWAY) : 0
-      };
-
-      console.log('fading...', colors);
-      blinker.fadeToRGB(1000, colors.red, colors.green, colors.blue);
-    } else {
-      console.log('no arrivals returned');
-      blinker.fadeToRGB(1000, 0, 0, 0);
-    }
-
-    return arrivals;
-  })
-  .catch(function(err) {
-    console.error('The Train Tracker API returned an error:');
-    console.error(err);
-    throw err;
-  });
-};
-
-const checkAndRepeat = function() {
-  console.log('check and repeat');
-  return checkArrivalsAndChangeBlinker()
-    .then(function() {
-      // console.log('*** EXITING SAFELY');
-      // blinker.off();
-      // process.exit(0);
-      console.log('setting timeout');
-      setTimeout(checkAndRepeat, CONFIG.CHECK_INTERVAL * 1000);
+      return arrivals;
     })
-    .catch(function() {
+    .catch(function(err) {
+      blinkerControl.playSequenceOnBlinker(blinker, blinkerPatterns.indicateError());
+      console.error('The Train Tracker API returned an error:');
+      console.error(err);
+
+      throw err;
+    });
+}
+
+function checkAndScheduleNextCheck(slowZoneInstance, blinker) {
+  checkPredictionsAndReact(slowZoneInstance, blinker)
+    .then(function(/*arrivals*/) {
+      console.info(`Setting a timeout for ${CONFIG.CHECK_INTERVAL} seconds from now.`);
+      setTimeout(checkAndScheduleNextCheck.bind(null, slowZoneInstance, blinker), CONFIG.CHECK_INTERVAL * 1000);
+    })
+    .catch(function(err) {
+      console.info('Caught an error. Exiting!');
+      console.info(err.stack);
       process.exit(2);
     });
-};
+}
 
-checkAndRepeat();
+checkAndScheduleNextCheck(sz, blinker);

@@ -8,7 +8,7 @@ const CONFIG = {
   /* Your API key for the Train Tracker API.
    * Get one here: http://www.transitchicago.com/developers/ttkey.aspx
    */
-  TRAIN_TRACKER_API_KEY: 'API KEY HERE',
+  TRAIN_TRACKER_API_KEY: 'afafafafafafafafafafafafafafafaf',
 
   /* This object determines what stops you want to track.
    */
@@ -17,7 +17,12 @@ const CONFIG = {
        Find stop IDs at https://data.cityofchicago.org/Transportation/CTA-System-Information-List-of-L-Stops/8pix-ypme
     */
     ID: 'STOP_ID'
-  }
+  },
+
+  /* How often we should check for new info, in seconds.
+     Default is once a minute, or every 60 seconds.
+  */
+  CHECK_INTERVAL: 60
 };
 
 module.exports = CONFIG;

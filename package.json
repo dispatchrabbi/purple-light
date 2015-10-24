@@ -17,8 +17,6 @@
   },
   "homepage": "https://github.com/dispatchrabbi/purple-light",
   "dependencies": {
-    "daemon": "^1.1.0",
-    "denodeify": "^1.2.1",
     "node-blink1": "^0.2.2",
     "slow-zone": "^1.0.0"
   }
